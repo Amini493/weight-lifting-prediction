@@ -1,0 +1,82 @@
+---
+title: "Weight Lifting Exercise Prediction"
+author: "Amini Isti"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(corrplot)
+library(ggplot2)
+library(dplyr)
+```
+
+## 1. Load and Clean the Data
+
+```{r load-data}
+# Load training and test datasets
+training_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testing_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+training_raw <- read.csv(url(training_url))
+testing_raw <- read.csv(url(testing_url))
+
+# Remove near-zero variance predictors
+nzv <- nearZeroVar(training_raw)
+training_clean <- training_raw[, -nzv]
+
+# Remove columns with mostly NA values
+na_cols <- sapply(training_clean, function(x) mean(is.na(x))) > 0.95
+training_clean <- training_clean[, !na_cols]
+
+# Remove non-predictive columns (e.g., X, timestamp, user_name)
+training_clean <- training_clean[, -(1:5)]
+
+# Apply same cleaning to test data
+testing_clean <- testing_raw[, names(testing_raw) %in% names(training_clean)]
+```
+
+## 2. Partition the Training Set
+
+```{r partition-data}
+set.seed(123)
+splitIndex <- createDataPartition(training_clean$classe, p = 0.7, list = FALSE)
+trainSet <- training_clean[splitIndex, ]
+validSet <- training_clean[-splitIndex, ]
+```
+
+## 3. Train the Model
+
+```{r train-model}
+set.seed(123)
+model_rf <- train(classe ~ ., data = trainSet, method = "rf",
+                  trControl = trainControl(method = "cv", number = 5),
+                  ntree = 100)
+```
+
+## 4. Evaluate the Model
+
+```{r evaluate-model}
+predictions <- predict(model_rf, validSet)
+confusionMatrix(predictions, validSet$classe)
+```
+
+## 5. Predict on the Test Set
+
+```{r predict-test}
+final_predictions <- predict(model_rf, testing_clean)
+final_predictions
+```
+
+## 6. Conclusion
+
+This model used Random Forest with cross-validation and achieved strong accuracy on the validation set. Feature cleaning was important to reduce noise and irrelevant data. This model can now be used to classify barbell lift execution quality reliably.
+
+## References
+
+- Dataset Source: [PUC-Rio Human Activity Recognition](http://groupware.les.inf.puc-rio.br/har)
+
